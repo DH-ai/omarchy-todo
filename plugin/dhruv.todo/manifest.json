@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "dhruv.todo",
+  "name": "To-do list",
+  "version": "1.0.0",
+  "author": "Dhruv",
+  "description": "A small persistent to-do list for the Omarchy bar.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Todo.qml" },
+  "barWidget": {
+    "displayName": "To-do list",
+    "description": "A clickable task count and compact to-do list.",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}

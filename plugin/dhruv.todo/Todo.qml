@@ -1,0 +1,288 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Ui
+
+// Persistent, deliberately small to-do list for Omarchy's Quickshell bar.
+BarWidget {
+  id: root
+  moduleName: "dhruv.todo"
+
+  property bool stateLoaded: false
+  readonly property string statePath: Quickshell.env("HOME") + "/.local/state/omarchy/todo.json"
+  readonly property int openCount: {
+    var count = 0
+    for (var i = 0; i < tasks.count; i++) if (!tasks.get(i).done) count++
+    return count
+  }
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  function loadTasks(raw) {
+    if (stateLoaded) return
+    tasks.clear()
+    try {
+      var entries = JSON.parse(raw).tasks || []
+      for (var i = 0; i < entries.length; i++) {
+        var title = String(entries[i].text || "").trim()
+        if (title !== "") tasks.append({ text: title, done: entries[i].done === true })
+      }
+    } catch (error) {
+      // An absent or malformed state file starts as an empty list.
+    }
+    stateLoaded = true
+  }
+
+  function saveTasks() {
+    if (!stateLoaded) return
+    var saved = []
+    for (var i = 0; i < tasks.count; i++) saved.push(tasks.get(i))
+    stateFile.setText(JSON.stringify({ version: 1, tasks: saved }, null, 2) + "\n")
+  }
+
+  function addTask() {
+    var title = entry.text.trim()
+    if (title === "") return
+    tasks.append({ text: title, done: false })
+    entry.text = ""
+    saveTasks()
+    entry.forceActiveFocus()
+  }
+
+  function toggleTask(index) {
+    tasks.setProperty(index, "done", !tasks.get(index).done)
+    saveTasks()
+  }
+
+  function removeTask(index) {
+    tasks.remove(index)
+    saveTasks()
+  }
+
+  readonly property bool opened: panel.opened
+  readonly property bool popoutSwitchClosing: panel.popoutSwitchClosing
+  function open() { panel.open() }
+  function close() { panel.close() }
+  function togglePanel() { panel.toggle() }
+  function closeForPopoutSwitch() { panel.closeForPopoutSwitch() }
+
+  ListModel { id: tasks }
+
+  FileView {
+    id: stateFile
+    path: root.statePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadTasks(text())
+    onFileChanged: {
+      root.stateLoaded = false
+      reload()
+    }
+    onLoadFailed: root.loadTasks("")
+  }
+
+  Component.onCompleted: stateFile.reload()
+
+  WidgetButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: root.openCount === 0 ? "󰄬" : "󰄱 " + root.openCount
+    tooltipText: root.openCount === 1 ? "1 task left" : root.openCount + " tasks left"
+    horizontalMargin: 8
+    onPressed: function() { root.togglePanel() }
+  }
+
+  Panel {
+    id: panel
+    moduleName: root.moduleName
+    manageIpc: false
+    bar: root.bar
+
+    function open() {
+      controller.show()
+      Qt.callLater(function() { entry.forceActiveFocus() })
+    }
+
+    function close() { controller.hide() }
+    function toggle() { opened ? close() : open() }
+
+    KeyboardPanel {
+      anchorItem: button
+      owner: root
+      bar: root.bar
+      open: panel.opened
+      centerOnBar: true
+      contentWidth: fittedContentWidth(Style.space(360))
+      contentHeight: fittedContentHeight(Style.space(330))
+
+      Item {
+        anchors.fill: parent
+
+        Column {
+          anchors.fill: parent
+          anchors.margins: Style.space(16)
+          spacing: Style.space(12)
+
+          Row {
+            Text {
+              text: "TO-DO"
+              color: root.bar ? root.bar.barForeground : Color.foreground
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              font.letterSpacing: 1
+            }
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              leftPadding: Style.space(8)
+              text: root.openCount === 0 ? "All clear" : root.openCount + " left"
+              color: Qt.darker(root.bar ? root.bar.barForeground : Color.foreground, 1.4)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.bodySmall
+            }
+          }
+
+          Rectangle {
+            width: parent.width
+            height: Style.space(38)
+            radius: Style.cornerRadius > 0 ? Style.space(6) : 0
+            color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.1)
+            border.width: entry.activeFocus ? 1 : 0
+            border.color: Color.accent
+
+            TextInput {
+              id: entry
+              anchors.left: parent.left
+              anchors.right: addButton.left
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.leftMargin: Style.space(10)
+              anchors.rightMargin: Style.space(8)
+              color: root.bar ? root.bar.barForeground : Color.foreground
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.body
+              clip: true
+              onAccepted: root.addTask()
+            }
+            Text {
+              anchors.left: entry.left
+              anchors.verticalCenter: parent.verticalCenter
+              visible: entry.text === ""
+              text: "Add a task…"
+              color: Qt.darker(root.bar ? root.bar.barForeground : Color.foreground, 1.5)
+              font.family: entry.font.family
+              font.pixelSize: entry.font.pixelSize
+            }
+            Text {
+              id: addButton
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(11)
+              anchors.verticalCenter: parent.verticalCenter
+              text: "＋"
+              color: Color.accent
+              font.pixelSize: Style.font.title
+              MouseArea {
+                anchors.fill: parent
+                anchors.margins: -Style.space(8)
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.addTask()
+              }
+            }
+          }
+
+          Flickable {
+            width: parent.width
+            height: parent.height - y
+            contentWidth: width
+            contentHeight: taskColumn.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            Column {
+              id: taskColumn
+              width: parent.width
+              spacing: Style.space(4)
+
+              Repeater {
+                model: tasks
+                delegate: Rectangle {
+                  id: taskRow
+                  required property int index
+                  required property string text
+                  required property bool done
+                  width: taskColumn.width
+                  height: Style.space(34)
+                  radius: Style.cornerRadius > 0 ? Style.space(5) : 0
+                  color: taskHover.containsMouse ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.08) : "transparent"
+
+                  Text {
+                    id: check
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(6)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: done ? "󰄬" : "󰄱"
+                    color: done ? Color.accent : (root.bar ? root.bar.barForeground : Color.foreground)
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.body
+                  }
+                  Text {
+                    anchors.left: check.right
+                    anchors.right: removeButton.left
+                    anchors.leftMargin: Style.space(10)
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: taskRow.text
+                    color: root.bar ? root.bar.barForeground : Color.foreground
+                    opacity: done ? 0.45 : 1
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.body
+                    elide: Text.ElideRight
+                  }
+                  Text {
+                    id: removeButton
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "×"
+                    color: Qt.darker(root.bar ? root.bar.barForeground : Color.foreground, 1.25)
+                    font.pixelSize: Style.font.title
+                    MouseArea {
+                      anchors.fill: parent
+                      anchors.margins: -Style.space(6)
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.removeTask(index)
+                    }
+                  }
+                  MouseArea {
+                    id: taskHover
+                    anchors.left: parent.left
+                    anchors.right: removeButton.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleTask(index)
+                  }
+                }
+              }
+
+              Text {
+                visible: tasks.count === 0
+                width: taskColumn.width
+                topPadding: Style.space(18)
+                text: "Nothing on your list."
+                horizontalAlignment: Text.AlignHCenter
+                color: Qt.darker(root.bar ? root.bar.barForeground : Color.foreground, 1.45)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

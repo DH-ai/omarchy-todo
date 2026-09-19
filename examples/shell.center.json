@@ -1,0 +1,17 @@
+{
+  "centerAnchor": "omarchy.clock",
+  "layout": {
+    "center": [
+      { "id": "omarchy.keyboard-layout" },
+      { "id": "omarchy.weather" },
+      { "id": "omarchy.system-update" },
+      { "id": "omarchy.indicators" },
+      { "id": "dhruv.todo" },
+      {
+        "id": "omarchy.clock",
+        "format": "dddd HH:mm",
+        "formatAlt": "d MMMM 'W'ww yyyy"
+      }
+    ]
+  }
+}
