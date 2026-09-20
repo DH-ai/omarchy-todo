@@ -5,8 +5,10 @@ widget sits next to the centre clock and stores its tasks in
 `~/.local/state/omarchy/todo.json`.
 
 Click the bar icon to open the list. Type a task and press Enter (or `+`) to
-add it, click a task to mark it complete, and click `×` to delete it. The bar
-shows the count of unfinished tasks.
+add it, click a task to mark it complete, and click `×` to delete it. Click a
+priority label to cycle **P1** (red), **P2** (yellow), and **P3** (green).
+Drag the `⠿` handle to reorder tasks. The bar shows the count of unfinished
+tasks.
 
 ## Install
 

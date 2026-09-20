@@ -27,7 +27,8 @@ BarWidget {
       var entries = JSON.parse(raw).tasks || []
       for (var i = 0; i < entries.length; i++) {
         var title = String(entries[i].text || "").trim()
-        if (title !== "") tasks.append({ text: title, done: entries[i].done === true })
+        var priority = ["P1", "P2", "P3"].indexOf(entries[i].priority) >= 0 ? entries[i].priority : "P3"
+        if (title !== "") tasks.append({ text: title, done: entries[i].done === true, priority: priority })
       }
     } catch (error) {
       // An absent or malformed state file starts as an empty list.
@@ -45,7 +46,7 @@ BarWidget {
   function addTask() {
     var title = entry.text.trim()
     if (title === "") return
-    tasks.append({ text: title, done: false })
+    tasks.append({ text: title, done: false, priority: "P3" })
     entry.text = ""
     saveTasks()
     entry.forceActiveFocus()
@@ -58,6 +59,24 @@ BarWidget {
 
   function removeTask(index) {
     tasks.remove(index)
+    saveTasks()
+  }
+
+  function cyclePriority(index) {
+    var current = tasks.get(index).priority
+    var next = current === "P1" ? "P2" : (current === "P2" ? "P3" : "P1")
+    tasks.setProperty(index, "priority", next)
+    saveTasks()
+  }
+
+  function priorityColor(priority) {
+    return priority === "P1" ? "#ef5350" : (priority === "P2" ? "#fbc02d" : "#66bb6a")
+  }
+
+  function moveTask(from, to) {
+    var destination = Math.max(0, Math.min(tasks.count - 1, to))
+    if (from === destination) return
+    tasks.move(from, destination, 1)
     saveTasks()
   }
 
@@ -213,6 +232,7 @@ BarWidget {
                   required property int index
                   required property string text
                   required property bool done
+                  required property string priority
                   width: taskColumn.width
                   height: Style.space(34)
                   radius: Style.cornerRadius > 0 ? Style.space(5) : 0
@@ -220,8 +240,8 @@ BarWidget {
 
                   Text {
                     id: check
-                    anchors.left: parent.left
-                    anchors.leftMargin: Style.space(6)
+                    anchors.left: dragHandle.right
+                    anchors.leftMargin: Style.space(5)
                     anchors.verticalCenter: parent.verticalCenter
                     text: done ? "󰄬" : "󰄱"
                     color: done ? Color.accent : (root.bar ? root.bar.barForeground : Color.foreground)
@@ -230,7 +250,7 @@ BarWidget {
                   }
                   Text {
                     anchors.left: check.right
-                    anchors.right: removeButton.left
+                    anchors.right: priorityButton.left
                     anchors.leftMargin: Style.space(10)
                     anchors.rightMargin: Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
@@ -240,6 +260,23 @@ BarWidget {
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.body
                     elide: Text.ElideRight
+                  }
+                  Text {
+                    id: priorityButton
+                    anchors.right: removeButton.left
+                    anchors.rightMargin: Style.space(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: priority
+                    color: root.priorityColor(priority)
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                    MouseArea {
+                      anchors.fill: parent
+                      anchors.margins: -Style.space(5)
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.cyclePriority(index)
+                    }
                   }
                   Text {
                     id: removeButton
@@ -258,13 +295,38 @@ BarWidget {
                   }
                   MouseArea {
                     id: taskHover
-                    anchors.left: parent.left
-                    anchors.right: removeButton.left
+                    anchors.left: check.left
+                    anchors.right: priorityButton.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.toggleTask(index)
+                  }
+                  Text {
+                    id: dragHandle
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(6)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "⠿"
+                    color: Qt.darker(root.bar ? root.bar.barForeground : Color.foreground, 1.45)
+                    font.pixelSize: Style.font.body
+                    MouseArea {
+                      id: dragArea
+                      anchors.fill: parent
+                      anchors.margins: -Style.space(6)
+                      cursorShape: Qt.SizeVerCursor
+                      drag.target: taskRow
+                      drag.axis: Drag.YAxis
+                      onPressed: taskRow.z = 1
+                      onReleased: function(mouse) {
+                        var point = dragArea.mapToItem(taskColumn, mouse.x, mouse.y)
+                        root.moveTask(index, Math.floor(point.y / (taskRow.height + taskColumn.spacing)))
+                        taskRow.x = 0
+                        taskRow.y = 0
+                        taskRow.z = 0
+                      }
+                    }
                   }
                 }
               }
