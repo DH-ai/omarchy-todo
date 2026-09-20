@@ -80,15 +80,16 @@ BarWidget {
   }
 
   function normalizeTaskOrder() {
-    var ordered = []
-    for (var rank = 1; rank <= 3; rank++) {
-      for (var i = 0; i < tasks.count; i++) {
-        var task = tasks.get(i)
-        if (priorityRank(task.priority) === rank) ordered.push(task)
+    // Move rows in place. Clearing a ListModel invalidates objects returned
+    // by get(), which can erase their roles during a live plugin reload.
+    for (var target = 0; target < tasks.count; target++) {
+      var best = target
+      for (var candidate = target + 1; candidate < tasks.count; candidate++) {
+        if (priorityRank(tasks.get(candidate).priority) < priorityRank(tasks.get(best).priority))
+          best = candidate
       }
+      if (best !== target) tasks.move(best, target, 1)
     }
-    tasks.clear()
-    for (var j = 0; j < ordered.length; j++) tasks.append(ordered[j])
   }
 
   function priorityBounds(priority) {
