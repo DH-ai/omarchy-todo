@@ -10,6 +10,7 @@ BarWidget {
   moduleName: "dhruv.todo"
 
   property bool stateLoaded: false
+  property var taskRows: []
   readonly property string statePath: Quickshell.env("HOME") + "/.local/state/omarchy/todo.json"
   readonly property int openCount: {
     var count = 0
@@ -109,6 +110,27 @@ BarWidget {
     if (from === destination) return
     tasks.move(from, destination, 1)
     saveTasks()
+  }
+
+  function registerTaskRow(row) {
+    var next = taskRows.slice()
+    next.push(row)
+    taskRows = next
+  }
+
+  function unregisterTaskRow(row) {
+    taskRows = taskRows.filter(function(candidate) { return candidate !== row })
+  }
+
+  function taskIndexAt(y) {
+    var last = 0
+    for (var i = 0; i < taskRows.length; i++) {
+      var row = taskRows[i]
+      if (!row || row.index === undefined) continue
+      if (y <= row.y + row.height / 2) return row.index
+      last = Math.max(last, row.index)
+    }
+    return last
   }
 
   readonly property bool opened: panel.opened
@@ -265,7 +287,7 @@ BarWidget {
                   required property bool done
                   required property string priority
                   width: taskColumn.width
-                  height: Style.space(34)
+                  height: Math.max(Style.space(34), taskLabel.implicitHeight + Style.space(12))
                   radius: Style.cornerRadius > 0 ? Style.space(5) : 0
                   color: taskHover.containsMouse ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.08) : "transparent"
 
@@ -280,6 +302,7 @@ BarWidget {
                     font.pixelSize: Style.font.body
                   }
                   Text {
+                    id: taskLabel
                     anchors.left: check.right
                     anchors.right: priorityButton.left
                     anchors.leftMargin: Style.space(10)
@@ -290,7 +313,7 @@ BarWidget {
                     opacity: done ? 0.45 : 1
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.body
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                   }
                   Text {
                     id: priorityButton
@@ -352,13 +375,16 @@ BarWidget {
                       onPressed: taskRow.z = 1
                       onReleased: function(mouse) {
                         var point = dragArea.mapToItem(taskColumn, mouse.x, mouse.y)
-                        root.moveTask(index, Math.floor(point.y / (taskRow.height + taskColumn.spacing)))
+                        root.moveTask(index, root.taskIndexAt(point.y))
                         taskRow.x = 0
                         taskRow.y = 0
                         taskRow.z = 0
                       }
                     }
                   }
+
+                  Component.onCompleted: root.registerTaskRow(taskRow)
+                  Component.onDestruction: root.unregisterTaskRow(taskRow)
                 }
               }
 
