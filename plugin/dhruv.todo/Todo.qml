@@ -11,6 +11,7 @@ BarWidget {
 
   property bool stateLoaded: false
   property var taskRows: []
+  property string lastSavedState: ""
   readonly property string statePath: Quickshell.env("HOME") + "/.local/state/omarchy/todo.json"
   readonly property int openCount: {
     var count = 0
@@ -23,18 +24,31 @@ BarWidget {
 
   function loadTasks(raw) {
     if (stateLoaded) return
-    tasks.clear()
+    var entries = []
     try {
-      var entries = JSON.parse(raw).tasks || []
-      for (var i = 0; i < entries.length; i++) {
-        var title = String(entries[i].text || "").trim()
-        var priority = ["P1", "P2", "P3"].indexOf(entries[i].priority) >= 0 ? entries[i].priority : "P3"
-        if (title !== "") tasks.append({ text: title, done: entries[i].done === true, priority: priority })
-      }
+      var parsed = JSON.parse(raw)
+      entries = parsed && Array.isArray(parsed.tasks) ? parsed.tasks : []
     } catch (error) {
-      // An absent or malformed state file starts as an empty list.
+      reloadRetry.restart()
+      return
     }
+    var loaded = []
+    for (var i = 0; i < entries.length; i++) {
+      var title = String(entries[i].text || "").trim()
+      var priority = ["P1", "P2", "P3"].indexOf(entries[i].priority) >= 0 ? entries[i].priority : "P3"
+      if (title !== "") loaded.push({ text: title, done: entries[i].done === true, priority: priority })
+    }
+    tasks.clear()
+    for (var j = 0; j < loaded.length; j++) tasks.append(loaded[j])
+    lastSavedState = raw
     normalizeTaskOrder()
+    stateLoaded = true
+  }
+
+  function initializeEmptyTasks() {
+    if (stateLoaded) return
+    tasks.clear()
+    lastSavedState = ""
     stateLoaded = true
   }
 
@@ -42,8 +56,13 @@ BarWidget {
     if (!stateLoaded) return
     var saved = []
     for (var i = 0; i < tasks.count; i++) saved.push(tasks.get(i))
-    stateFile.setText(JSON.stringify({ version: 1, tasks: saved }, null, 2) + "\n")
+    var nextState = JSON.stringify({ version: 1, tasks: saved }, null, 2) + "\n"
+    if (lastSavedState !== "") backupFile.setText(lastSavedState)
+    stateFile.setText(nextState)
+    lastSavedState = nextState
   }
+
+  Timer { id: reloadRetry; interval: 120; repeat: false; onTriggered: stateFile.reload() }
 
   function addTask() {
     var title = entry.text.trim()
@@ -153,8 +172,10 @@ BarWidget {
       root.stateLoaded = false
       reload()
     }
-    onLoadFailed: root.loadTasks("")
+    onLoadFailed: root.initializeEmptyTasks()
   }
+
+  FileView { id: backupFile; path: root.statePath + ".previous"; atomicWrites: true; printErrors: false }
 
   Component.onCompleted: stateFile.reload()
 
