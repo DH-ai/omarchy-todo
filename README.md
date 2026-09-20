@@ -7,8 +7,9 @@ widget sits next to the centre clock and stores its tasks in
 Click the bar icon to open the list. Type a task and press Enter (or `+`) to
 add it, click a task to mark it complete, and click `×` to delete it. Click a
 priority label to cycle **P1** (red), **P2** (yellow), and **P3** (green).
-Drag the `⠿` handle to reorder tasks. The bar shows the count of unfinished
-tasks.
+Tasks are grouped by priority: P1 is always above P2, and P2 is always above
+P3. Drag the `⠿` handle to reorder tasks within their own priority group. The
+bar shows the count of unfinished tasks.
 
 ## Install
 

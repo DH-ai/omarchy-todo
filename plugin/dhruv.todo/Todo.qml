@@ -33,6 +33,7 @@ BarWidget {
     } catch (error) {
       // An absent or malformed state file starts as an empty list.
     }
+    normalizeTaskOrder()
     stateLoaded = true
   }
 
@@ -66,6 +67,7 @@ BarWidget {
     var current = tasks.get(index).priority
     var next = current === "P1" ? "P2" : (current === "P2" ? "P3" : "P1")
     tasks.setProperty(index, "priority", next)
+    normalizeTaskOrder()
     saveTasks()
   }
 
@@ -73,8 +75,36 @@ BarWidget {
     return priority === "P1" ? "#ef5350" : (priority === "P2" ? "#fbc02d" : "#66bb6a")
   }
 
+  function priorityRank(priority) {
+    return priority === "P1" ? 1 : (priority === "P2" ? 2 : 3)
+  }
+
+  function normalizeTaskOrder() {
+    var ordered = []
+    for (var rank = 1; rank <= 3; rank++) {
+      for (var i = 0; i < tasks.count; i++) {
+        var task = tasks.get(i)
+        if (priorityRank(task.priority) === rank) ordered.push(task)
+      }
+    }
+    tasks.clear()
+    for (var j = 0; j < ordered.length; j++) tasks.append(ordered[j])
+  }
+
+  function priorityBounds(priority) {
+    var first = -1
+    var last = -1
+    for (var i = 0; i < tasks.count; i++) {
+      if (tasks.get(i).priority !== priority) continue
+      if (first < 0) first = i
+      last = i
+    }
+    return { first: first, last: last }
+  }
+
   function moveTask(from, to) {
-    var destination = Math.max(0, Math.min(tasks.count - 1, to))
+    var bounds = priorityBounds(tasks.get(from).priority)
+    var destination = Math.max(bounds.first, Math.min(bounds.last, to))
     if (from === destination) return
     tasks.move(from, destination, 1)
     saveTasks()
