@@ -12,6 +12,7 @@ BarWidget {
   property bool stateLoaded: false
   property var taskRows: []
   property string lastSavedState: ""
+  property int editingIndex: -1
   readonly property string statePath: Quickshell.env("HOME") + "/.local/state/omarchy/todo.json"
   readonly property int openCount: {
     var count = 0
@@ -80,7 +81,23 @@ BarWidget {
 
   function removeTask(index) {
     tasks.remove(index)
+    if (editingIndex === index) editingIndex = -1
     saveTasks()
+  }
+
+  function startEditing(index) {
+    editingIndex = index
+  }
+
+  function commitEdit(index, value) {
+    var title = String(value).trim()
+    if (title !== "") tasks.setProperty(index, "text", title)
+    editingIndex = -1
+    saveTasks()
+  }
+
+  function cancelEdit() {
+    editingIndex = -1
   }
 
   function cyclePriority(index) {
@@ -307,8 +324,9 @@ BarWidget {
                   required property string text
                   required property bool done
                   required property string priority
+                  readonly property bool editing: root.editingIndex === index
                   width: taskColumn.width
-                  height: Math.max(Style.space(34), taskLabel.implicitHeight + Style.space(12))
+                  height: Math.max(Style.space(34), (editing ? taskEditor.contentHeight : taskLabel.implicitHeight) + Style.space(12))
                   radius: Style.cornerRadius > 0 ? Style.space(5) : 0
                   color: taskHover.containsMouse ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.08) : "transparent"
 
@@ -330,11 +348,53 @@ BarWidget {
                     anchors.rightMargin: Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
                     text: taskRow.text
+                    visible: !taskRow.editing
                     color: root.bar ? root.bar.barForeground : Color.foreground
                     opacity: done ? 0.45 : 1
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.body
                     wrapMode: Text.Wrap
+                  }
+                  TextEdit {
+                    id: taskEditor
+                    anchors.left: check.right
+                    anchors.right: editButton.left
+                    anchors.leftMargin: Style.space(10)
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: contentHeight
+                    visible: taskRow.editing
+                    text: taskRow.text
+                    color: root.bar ? root.bar.barForeground : Color.foreground
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.body
+                    wrapMode: TextEdit.Wrap
+                    selectByMouse: true
+                    Keys.onPressed: function(event) {
+                      if (event.key === Qt.Key_Escape) {
+                        root.cancelEdit()
+                        event.accepted = true
+                      } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) {
+                        root.commitEdit(index, taskEditor.text)
+                        event.accepted = true
+                      }
+                    }
+                  }
+                  Text {
+                    id: editButton
+                    anchors.right: priorityButton.left
+                    anchors.rightMargin: Style.space(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰏫"
+                    color: Qt.darker(root.bar ? root.bar.barForeground : Color.foreground, 1.25)
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.body
+                    MouseArea {
+                      anchors.fill: parent
+                      anchors.margins: -Style.space(6)
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.startEditing(index)
+                    }
                   }
                   Text {
                     id: priorityButton
@@ -371,9 +431,10 @@ BarWidget {
                   MouseArea {
                     id: taskHover
                     anchors.left: check.left
-                    anchors.right: priorityButton.left
+                    anchors.right: editButton.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
+                    enabled: !taskRow.editing
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: root.toggleTask(index)
@@ -406,6 +467,7 @@ BarWidget {
 
                   Component.onCompleted: root.registerTaskRow(taskRow)
                   Component.onDestruction: root.unregisterTaskRow(taskRow)
+                  onEditingChanged: if (editing) Qt.callLater(function() { taskEditor.forceActiveFocus() })
                 }
               }
 
